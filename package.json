@@ -4,7 +4,7 @@
   "icon": "media/cutieboard.png",
   "description": "A compact btop-inspired Explorer monitor for utilization, temperature, and power.",
   "version": "0.0.1",
-  "publisher": "local",
+  "publisher": "adityasasidhar",
   "license": "MIT",
   "repository": {
     "type": "git",
