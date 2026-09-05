@@ -3,7 +3,7 @@
   "displayName": "Cutieboard",
   "icon": "media/cutieboard.png",
   "description": "A compact btop-inspired Explorer monitor for utilization, temperature, and power.",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "publisher": "adityasasidhar",
   "license": "MIT",
   "repository": {

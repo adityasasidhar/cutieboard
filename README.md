@@ -28,7 +28,7 @@ PWR  70.0W   CPU 25W  GPU 30W · system total
 
 **From the VSIX (recommended)**
 
-1. Grab `cutieboard-0.0.1.vsix` from the repo (or build it yourself — see below).
+1. Grab `cutieboard-0.1.0.vsix` from the repo (or build it yourself — see below).
 2. In VS Code: **Extensions → … → Install from VSIX…** and pick the file.
 3. Open the **Explorer** sidebar and expand **Cutieboard**.
 
@@ -90,7 +90,7 @@ Nothing ever leaves your machine: no network calls, no telemetry, no accounts.
 ```bash
 npm run check    # syntax-check all modules
 npm test         # full unit suite (node --test)
-npm run package  # build cutieboard-0.0.1.vsix with vsce
+npm run package  # build cutieboard-0.1.0.vsix with vsce
 ```
 
 ## License
