@@ -1,0 +1,98 @@
+{
+  "name": "cutieboard",
+  "displayName": "Cutieboard",
+  "icon": "media/cutieboard.png",
+  "description": "A compact btop-inspired Explorer monitor for utilization, temperature, and power.",
+  "version": "0.0.1",
+  "publisher": "local",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/adityasasidhar/cutieboard.git"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished",
+    "onView:cutieboard.monitorView",
+    "onCommand:cutieboard.focusMonitor",
+    "onCommand:cutieboard.refresh",
+    "onCommand:cutieboard.pause",
+    "onCommand:cutieboard.resume"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "cutieboard.focusMonitor",
+        "title": "Cutieboard: Focus Monitor",
+        "icon": "$(pulse)"
+      },
+      {
+        "command": "cutieboard.refresh",
+        "title": "Cutieboard: Refresh",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "cutieboard.pause",
+        "title": "Cutieboard: Pause",
+        "icon": "$(debug-pause)"
+      },
+      {
+        "command": "cutieboard.resume",
+        "title": "Cutieboard: Resume",
+        "icon": "$(play)"
+      }
+    ],
+    "views": {
+      "explorer": [
+        {
+          "id": "cutieboard.monitorView",
+          "name": "Cutieboard",
+          "type": "webview",
+          "visibility": "visible"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "cutieboard.refresh",
+          "when": "view == cutieboard.monitorView",
+          "group": "navigation@1"
+        },
+        {
+          "command": "cutieboard.pause",
+          "when": "view == cutieboard.monitorView && !cutieboard.paused",
+          "group": "navigation@2"
+        },
+        {
+          "command": "cutieboard.resume",
+          "when": "view == cutieboard.monitorView && cutieboard.paused",
+          "group": "navigation@2"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Cutieboard",
+      "properties": {
+        "cutieboard.refreshInterval": {
+          "type": "number",
+          "default": 2000,
+          "minimum": 1000,
+          "maximum": 10000,
+          "description": "How often Cutieboard updates its metrics, in milliseconds."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "check": "node --check extension.js && node --check monitor-core.js && node --check monitor-view.js && node --check system-sensors.js",
+    "test": "node --test test/*.test.js",
+    "package": "npx @vscode/vsce package --allow-missing-repository"
+  }
+}

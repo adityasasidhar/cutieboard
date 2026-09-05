@@ -1,0 +1,11 @@
+.vscode/**
+.git/**
+.agents/**
+.codex/**
+.remember/**
+.gitignore
+.vscodeignore
+**/*.vsix
+node_modules/**
+test/**
+npm-debug.log

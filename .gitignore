@@ -1,0 +1,19 @@
+# Build artifacts
+*.vsix
+
+# Dependencies
+node_modules/
+
+# Logs
+npm-debug.log*
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Editor state (keep shared launch config)
+.vscode/*
+!.vscode/launch.json
+
+# Private session notes
+.remember/
