@@ -214,8 +214,8 @@ function isPmsetDischarging(stdout) {
   return undefined;
 }
 
-function createMacSensorCollector({ execFile, now = Date.now }) {
-  const runText = (file, args, timeout) => new Promise((resolve) => {
+function createExecRunner(execFile) {
+  return (file, args, timeout) => new Promise((resolve) => {
     let settled = false;
     const done = (value) => {
       if (!settled) {
@@ -238,6 +238,70 @@ function createMacSensorCollector({ execFile, now = Date.now }) {
       done(undefined);
     }
   });
+}
+
+function parseWmiThermalZoneOutput(stdout) {
+  if (typeof stdout !== 'string') return undefined;
+  const readings = [];
+  for (const match of stdout.matchAll(/(\d{4,6})/g)) {
+    const celsius = Number(match[1]) / 10 - 273.15;
+    if (Number.isFinite(celsius) && celsius >= -20 && celsius <= 150) readings.push(celsius);
+  }
+  if (readings.length === 0) return undefined;
+  return Math.max(...readings);
+}
+
+function parseWmiBatteryStatusOutput(stdout) {
+  if (typeof stdout !== 'string' || !stdout.trim()) return undefined;
+  const field = (block, name) => {
+    const match = block.match(new RegExp(`^${name}\\s*:\\s*(.+?)\\s*$`, 'im'));
+    return match ? match[1].trim() : undefined;
+  };
+  const isTrue = (value) => /^true$/i.test(value || '') || value === '1';
+  for (const block of stdout.split(/\r?\n\s*\r?\n/)) {
+    if (!block.trim()) continue;
+    if (!isTrue(field(block, 'Discharging'))) continue;
+    const milliwatts = Number(field(block, 'DischargeRate'));
+    if (!Number.isFinite(milliwatts) || milliwatts <= 0 || milliwatts > 2_000_000) continue;
+    return milliwatts / 1000;
+  }
+  return undefined;
+}
+
+function createWindowsSensorCollector({ execFile }) {
+  const runText = createExecRunner(execFile);
+  const powershell = (command, timeout) => runText(
+    'powershell.exe',
+    ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', command],
+    timeout
+  );
+
+  return async () => {
+    const [thermalText, batteryText] = await Promise.all([
+      powershell(
+        'Get-CimInstance MSAcpi_ThermalZoneTemperature -Namespace root/wmi | Select-Object -ExpandProperty CurrentTemperature',
+        4000
+      ),
+      powershell(
+        'Get-CimInstance BatteryStatus -Namespace root/wmi | Format-List Voltage, ChargeRate, DischargeRate, Charging, Discharging, PowerOnline',
+        4000
+      )
+    ]);
+
+    const cpuTemperature = parseWmiThermalZoneOutput(thermalText);
+    const batteryWatts = parseWmiBatteryStatusOutput(batteryText);
+
+    return {
+      cpuTemperature,
+      power: batteryWatts === undefined
+        ? { available: false }
+        : { available: true, watts: batteryWatts, source: 'battery' }
+    };
+  };
+}
+
+function createMacSensorCollector({ execFile, now = Date.now }) {
+  const runText = createExecRunner(execFile);
 
   return async () => {
     const [osxTempText, smcText, powerText, ioregText, pmsetText] = await Promise.all([
@@ -294,11 +358,14 @@ function createMacSensorCollector({ execFile, now = Date.now }) {
 module.exports = {
   createLinuxSensorCollector,
   createMacSensorCollector,
+  createWindowsSensorCollector,
   _test: {
     parseOsxCpuTempOutput,
     parsePowermetricsSmcOutput,
     parsePowermetricsPowerOutput,
     parseIoregBatteryOutput,
+    parseWmiBatteryStatusOutput,
+    parseWmiThermalZoneOutput,
     isPmsetDischarging
   }
 };

@@ -13,7 +13,7 @@ const {
   parseNvidiaOutput
 } = require('./monitor-core');
 const { getWebviewHtml } = require('./monitor-view');
-const { createLinuxSensorCollector, createMacSensorCollector } = require('./system-sensors');
+const { createLinuxSensorCollector, createMacSensorCollector, createWindowsSensorCollector } = require('./system-sensors');
 
 const VIEW_ID = 'cutieboard.monitorView';
 
@@ -188,6 +188,9 @@ function createSensorCollector(platform, { fs: fileSystem, execFile: runFile } =
   }
   if (platform === 'darwin') {
     return createMacSensorCollector({ execFile: runFile });
+  }
+  if (platform === 'win32') {
+    return createWindowsSensorCollector({ execFile: runFile });
   }
   return async () => ({ cpuTemperature: undefined, power: { available: false } });
 }

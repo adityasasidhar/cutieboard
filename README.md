@@ -56,8 +56,8 @@ CPU and memory work everywhere via Node's system APIs. Temperature, power, and G
 | Telemetry | Linux | macOS | Windows |
 |---|---|---|---|
 | CPU / memory | ✅ | ✅ | ✅ |
-| CPU temperature | ✅ via hwmon (`coretemp`, `k10temp`, `zenpower`, …) | ⚠️ needs `osx-cpu-temp` or privileged `powermetrics` | — |
-| Power | ✅ via RAPL / battery discharge / NVIDIA | ✅ battery via `ioreg`+`pmset`; CPU/GPU via privileged `powermetrics` | — |
+| CPU temperature | ✅ via hwmon (`coretemp`, `k10temp`, `zenpower`, …) | ⚠️ needs `osx-cpu-temp` or privileged `powermetrics` | ⚠️ via WMI thermal zone (often unexposed by firmware) |
+| Power | ✅ via RAPL / battery discharge / NVIDIA | ✅ battery via `ioreg`+`pmset`; CPU/GPU via privileged `powermetrics` | ✅ battery discharge via WMI |
 | GPU | ✅ via `nvidia-smi` | hidden (no public Apple GPU utilization CLI) | ✅ via `nvidia-smi` if installed |
 | Unified memory | — | ✅ MEM covers the shared pool; no separate VRAM meter | — |
 
@@ -67,6 +67,11 @@ CPU and memory work everywhere via Node's system APIs. Temperature, power, and G
 - CPU temperature and `powermetrics` CPU/GPU power need privileges: install [`osx-cpu-temp`](https://github.com/lavoiesl/osx-cpu-temp) for temperature, or grant `powermetrics` access for full readings.
 - On Apple Silicon there is no separate VRAM pool, so Cutieboard labels memory `unified` and hides the VRAM row rather than counting the same gigabytes twice.
 
+**Windows notes**
+
+- Battery discharge power works with zero setup on laptops (WMI `BatteryStatus`); on desktops without a battery, power shows as unavailable.
+- CPU temperature comes from the WMI thermal zone, which many firmwares don't expose — expect `--°C` on those machines rather than an error.
+
 ## How it works
 
 Four small modules, no dependencies beyond Node builtins and the VS Code API:
@@ -74,7 +79,7 @@ Four small modules, no dependencies beyond Node builtins and the VS Code API:
 | File | Job |
 |---|---|
 | `extension.js` | activation, metric collection orchestration, webview provider, commands |
-| `system-sensors.js` | OS sensor collectors — Linux hwmon/RAPL/battery, macOS `powermetrics`/`ioreg`/`pmset` |
+| `system-sensors.js` | OS sensor collectors — Linux hwmon/RAPL/battery, macOS `powermetrics`/`ioreg`/`pmset`, Windows WMI thermal-zone/battery |
 | `monitor-core.js` | pure logic — CPU math, NVIDIA parsing, power merging, sampling, history store |
 | `monitor-view.js` | the Explorer webview HTML/CSS/JS (strict CSP with per-load nonce) |
 

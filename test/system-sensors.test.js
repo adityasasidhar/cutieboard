@@ -92,3 +92,69 @@ test('reports unavailable sensors without failing collection', async () => {
     power: { available: false }
   });
 });
+
+test('converts WMI thermal-zone readings from tenths of Kelvin and takes the hottest', () => {
+  const { _test } = require('../system-sensors');
+  assert.equal(_test.parseWmiThermalZoneOutput('2982\r\n3012\r\n'), 3012 / 10 - 273.15);
+  assert.equal(_test.parseWmiThermalZoneOutput('no thermal zones here'), undefined);
+  assert.equal(_test.parseWmiThermalZoneOutput('0'), undefined);
+  assert.equal(_test.parseWmiThermalZoneOutput(undefined), undefined);
+});
+
+test('reads Windows battery discharge rate in milliwatts while discharging', () => {
+  const { _test } = require('../system-sensors');
+  const discharging = [
+    'Voltage : 12000',
+    'ChargeRate : 0',
+    'DischargeRate : 24000',
+    'Charging : False',
+    'Discharging : True',
+    'PowerOnline : False'
+  ].join('\r\n');
+  const charging = discharging
+    .replace('DischargeRate : 24000', 'DischargeRate : 0')
+    .replace('Discharging : True', 'Discharging : False')
+    .replace('PowerOnline : False', 'PowerOnline : True');
+
+  assert.equal(_test.parseWmiBatteryStatusOutput(discharging), 24);
+  assert.equal(_test.parseWmiBatteryStatusOutput(charging), undefined);
+  assert.equal(_test.parseWmiBatteryStatusOutput(''), undefined);
+});
+
+test('collects Windows temperature and battery power via PowerShell WMI queries', async () => {
+  const { createWindowsSensorCollector } = require('../system-sensors');
+  const seen = [];
+  const execFile = (file, args, _options, callback) => {
+    seen.push([file, args.at(-1)]);
+    const command = args.at(-1);
+    if (command.includes('MSAcpi_ThermalZoneTemperature')) callback(null, '3012\r\n');
+    else callback(null, [
+      'Voltage : 12000',
+      'ChargeRate : 0',
+      'DischargeRate : 24000',
+      'Charging : False',
+      'Discharging : True',
+      'PowerOnline : False'
+    ].join('\r\n'));
+    return { on() {} };
+  };
+
+  assert.deepEqual(await createWindowsSensorCollector({ execFile })(), {
+    cpuTemperature: 3012 / 10 - 273.15,
+    power: { available: true, watts: 24, source: 'battery' }
+  });
+  assert.deepEqual(seen.map(([file]) => file), ['powershell.exe', 'powershell.exe']);
+});
+
+test('reports unavailable Windows sensors when WMI queries fail', async () => {
+  const { createWindowsSensorCollector } = require('../system-sensors');
+  const execFile = (_file, _args, _options, callback) => {
+    callback(new Error('WMI class not found'));
+    return { on() {} };
+  };
+
+  assert.deepEqual(await createWindowsSensorCollector({ execFile })(), {
+    cpuTemperature: undefined,
+    power: { available: false }
+  });
+});
