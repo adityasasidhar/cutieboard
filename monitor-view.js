@@ -257,7 +257,7 @@ function getWebviewHtml(nonce) {
         <span class="power-readout" id="power-breakdown">sensor unavailable</span>
         <div class="sparkline" id="power-history" aria-hidden="true"></div>
       </div>
-      <div class="details"><span id="power-source">OS power sensor unavailable</span></div>
+      <div class="details" id="power-details"><span id="power-source">OS power sensor unavailable</span></div>
     </section>
   </main>
 
@@ -342,10 +342,11 @@ function getWebviewHtml(nonce) {
         const parts = [];
         if (Number.isFinite(power.cpuWatts)) parts.push('CPU ' + power.cpuWatts.toFixed(0) + 'W');
         if (Number.isFinite(power.gpuWatts)) parts.push('GPU ' + power.gpuWatts.toFixed(0) + 'W');
-        const source = power.source === 'platform' ? 'system total' : power.source === 'battery' ? 'battery draw' : 'available components';
+        const source = power.source === 'platform' ? 'system total' : power.source === 'battery' ? 'battery draw' : '';
         byId('power-value').textContent = power.watts.toFixed(1) + 'W';
         byId('power-breakdown').textContent = parts.join('  ') || source;
         byId('power-source').textContent = source;
+        byId('power-details').hidden = !source;
         byId('power-row').title = source + (parts.length ? ' | ' + parts.join(' | ') : '');
         const powerHistory = metrics.history.power || [];
         drawHistory('power-history', powerHistory, Math.max(1, ...powerHistory));
@@ -353,6 +354,7 @@ function getWebviewHtml(nonce) {
         byId('power-value').textContent = '--W';
         byId('power-breakdown').textContent = 'sensor unavailable';
         byId('power-source').textContent = 'OS power sensor unavailable';
+        byId('power-details').hidden = false;
         byId('power-row').title = 'Power sensor unavailable or locked by the operating system';
         byId('power-history').replaceChildren();
       }

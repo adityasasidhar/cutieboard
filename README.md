@@ -19,7 +19,7 @@ PWR  70.0W   CPU 25W  GPU 30W · system total
 - **CPU** — utilization with rolling history, thread count, load averages, processor model, and package temperature when a sensor is readable
 - **Memory** — utilization with rolling history plus used / free / total (labeled `unified` on Apple Silicon, where one pool serves CPU and GPU)
 - **GPU** — NVIDIA utilization, VRAM usage, temperature, and power via `nvidia-smi`; the whole section hides itself when no NVIDIA tooling is present, so it never shows junk
-- **Power** — live device or component wattage with CPU/GPU breakdown and source label (`system total`, `battery draw`, or `available components`)
+- **Power** — live device or component wattage with CPU/GPU breakdown and source label (`system total` or `battery draw`)
 - **System strip** — hostname, uptime, live/paused/error state, and last-sample time
 - **Native controls** — refresh, pause, and resume buttons right in the view title, plus a `Cutieboard: Focus Monitor` command to jump to the panel
 - **Always sampling** — keeps collecting every couple of seconds even when the view is collapsed, with overlap protection so slow sensors can't pile up
