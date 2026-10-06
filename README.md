@@ -1,16 +1,29 @@
-# cutieboard
+<p align="center">
+  <img src="media/cutieboard.png" alt="cutieboard icon" width="64">
+</p>
 
-<img src="media/cutieboard.png" alt="cutieboard icon" width="64" align="left">
+<h1 align="center">cutieboard</h1>
 
-A small btop-style system monitor that lives in the Explorer sidebar,
-underneath your files. CPU, memory, GPU, temperature, and power —
-sampled locally, every two seconds, with nowhere to phone home to.
+<p align="center">
+  A small btop-style system monitor that lives in the Explorer sidebar,<br>
+  underneath your files. CPU, memory, GPU, temperature, and power —<br>
+  sampled locally, every two seconds, with nowhere to phone home to.
+</p>
 
-<br clear="both">
+<p align="center">
+  <img src="media/image.png" alt="Cutieboard system monitor in the Explorer sidebar">
+</p>
 
-![alt text](image.png)
+<p align="center">
+  <strong>No editor tab. No dashboard. Just glance left.</strong>
+</p>
 
-No editor tab. No dashboard. Just glance left.
+<p align="center">
+  <a href="#install">Install</a> ·
+  <a href="#use">Use</a> ·
+  <a href="#platform-notes">Platform notes</a> ·
+  <a href="#hacking">Hacking</a>
+</p>
 
 ---
 
@@ -56,11 +69,11 @@ just Node builtins and the VS Code API.
 ## Use
 
 | Want | Do |
-|---|---|
-| Open it | Command Palette → **Cutieboard: Focus Monitor** |
-| Sample now | **Refresh** button in the view title (fires even while paused) |
-| Pause / resume | **Pause** / **Resume** buttons in the view title |
-| Slow it down | Set `cutieboard.refreshInterval` |
+| :--- | :--- |
+| **Open it** | Command Palette → **Cutieboard: Focus Monitor** |
+| **Sample now** | **Refresh** button in the view title (fires even while paused) |
+| **Pause / resume** | **Pause** / **Resume** buttons in the view title |
+| **Slow it down** | Set `cutieboard.refreshInterval` |
 
 ```jsonc
 // settings.json
@@ -78,12 +91,12 @@ CPU and memory work everywhere through Node's `os` module. Everything
 else depends on what your OS is willing to expose — missing sensors
 degrade to `--`, by design.
 
-| | Linux | macOS | Windows |
-|---|---|---|---|
-| CPU / memory | yes | yes | yes |
-| CPU temp | hwmon (`coretemp`, `k10temp`, `zenpower`…) | needs `osx-cpu-temp` or privileged `powermetrics` | WMI thermal zone, often unexposed — expect `--°C` |
-| Power | RAPL / battery discharge / NVIDIA | battery via `ioreg` + `pmset`; CPU/GPU via privileged `powermetrics` | battery discharge via WMI (laptops; desktops show `--`) |
-| GPU | `nvidia-smi` | hidden — no public Apple GPU utilization CLI | `nvidia-smi`, if installed |
+| Metric | Linux | macOS | Windows |
+| :--- | :--- | :--- | :--- |
+| **CPU / memory** | yes | yes | yes |
+| **CPU temp** | hwmon (`coretemp`, `k10temp`, `zenpower`…) | needs `osx-cpu-temp` or privileged `powermetrics` | WMI thermal zone, often unexposed — expect `--°C` |
+| **Power** | RAPL / battery discharge / NVIDIA | battery via `ioreg` + `pmset`; CPU/GPU via privileged `powermetrics` | battery discharge via WMI (laptops; desktops show `--`) |
+| **GPU** | `nvidia-smi` | hidden — no public Apple GPU utilization CLI | `nvidia-smi`, if installed |
 
 Two Apple Silicon specifics: memory is labeled `unified` because one pool
 serves CPU and GPU, and the VRAM row hides instead of counting the same
@@ -117,8 +130,8 @@ pink-on-black theme you're running at 2am.
 ## Hacking
 
 ```bash
-npm run check    # syntax-check all four modules
-npm test         # full suite — node:test, no framework
+npm run check                  # syntax-check all four modules
+npm test                       # full suite — node:test, no framework
 node --test test/<name>.test.js  # one suite
 ```
 
