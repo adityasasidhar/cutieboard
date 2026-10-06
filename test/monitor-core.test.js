@@ -8,7 +8,7 @@ const {
   isUnifiedMemory,
   mergePowerReadings,
   parseNvidiaOutput
-} = require('../monitor-core');
+} = require('../src/monitor-core');
 
 test('calculates aggregate CPU use from consecutive OS samples', () => {
   const before = [

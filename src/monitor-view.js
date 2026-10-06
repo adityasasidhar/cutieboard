@@ -247,7 +247,7 @@ function getWebviewHtml(nonce) {
         <div class="meter" id="vram-meter" role="progressbar" aria-label="VRAM utilization" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="meter-fill"></div></div>
         <span class="trail" id="vram-ratio">--/--</span>
       </div>
-      <div class="details"><span id="gpu-name">NVIDIA GPU</span><span id="gpu-mem-note" hidden>shared memory</span><span>temp <b id="gpu-temp">--°C</b></span><span>power <b id="gpu-power">--W</b></span></div>
+      <div class="details"><span id="gpu-name">NVIDIA GPU</span><span id="gpu-mem-note" hidden>shared memory</span><span id="gpu-sleep-note" hidden>asleep</span><span>temp <b id="gpu-temp">--°C</b></span><span>power <b id="gpu-power">--W</b></span></div>
     </section>
 
     <section class="metric power" id="power-section">
@@ -321,7 +321,19 @@ function getWebviewHtml(nonce) {
 
       const hasGpu = Boolean(metrics.gpu.available);
       byId('gpu-section').hidden = !hasGpu;
-      if (hasGpu) {
+      if (hasGpu && metrics.gpu.asleep) {
+        // Runtime-suspended dGPU: querying it would wake it, so show the state only.
+        byId('vram-row').hidden = true;
+        byId('gpu-mem-note').hidden = true;
+        byId('gpu-sleep-note').hidden = false;
+        byId('gpu-value').textContent = 'sleep';
+        byId('gpu-name').textContent = metrics.gpu.name;
+        byId('gpu-temp').textContent = '--°C';
+        byId('gpu-power').textContent = '--W';
+        setMeter('gpu-meter', 0);
+        drawHistory('gpu-history', metrics.history.gpu);
+      } else if (hasGpu) {
+        byId('gpu-sleep-note').hidden = true;
         const sharedMemory = Boolean(metrics.gpu.memoryShared || metrics.memory.unified);
         byId('vram-row').hidden = sharedMemory;
         byId('gpu-mem-note').hidden = !sharedMemory;
@@ -342,11 +354,16 @@ function getWebviewHtml(nonce) {
         const parts = [];
         if (Number.isFinite(power.cpuWatts)) parts.push('CPU ' + power.cpuWatts.toFixed(0) + 'W');
         if (Number.isFinite(power.gpuWatts)) parts.push('GPU ' + power.gpuWatts.toFixed(0) + 'W');
-        const source = power.source === 'platform' ? 'system total' : power.source === 'battery' ? 'battery draw' : '';
+        const components = [
+          Number.isFinite(power.cpuWatts) ? 'cpu' : '',
+          Number.isFinite(power.gpuWatts) ? 'gpu' : ''
+        ].filter(Boolean);
+        const partial = (components.length > 1 ? components.join(' + ') : components[0] + ' only') + ' · no system total';
+        const source = power.source === 'platform' ? 'system total' : power.source === 'battery' ? 'battery draw' : partial;
         byId('power-value').textContent = power.watts.toFixed(1) + 'W';
         byId('power-breakdown').textContent = parts.join('  ') || source;
         byId('power-source').textContent = source;
-        byId('power-details').hidden = !source;
+        byId('power-details').hidden = false;
         byId('power-row').title = source + (parts.length ? ' | ' + parts.join(' | ') : '');
         const powerHistory = metrics.history.power || [];
         drawHistory('power-history', powerHistory, Math.max(1, ...powerHistory));

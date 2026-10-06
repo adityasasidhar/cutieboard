@@ -9,46 +9,67 @@ const {
   TelemetryStore,
   calculateCpuUsage,
   isUnifiedMemory,
-  mergePowerReadings,
-  parseNvidiaOutput
+  mergePowerReadings
 } = require('./monitor-core');
 const { getWebviewHtml } = require('./monitor-view');
-const { createLinuxSensorCollector, createMacSensorCollector, createWindowsSensorCollector } = require('./system-sensors');
+const {
+  createLinuxSensorCollector,
+  createMacSensorCollector,
+  createNvidiaCollector,
+  createWindowsSensorCollector
+} = require('./system-sensors');
 
 const VIEW_ID = 'cutieboard.monitorView';
+// CPU usage is a delta between two os.cpus() snapshots. A window of a few
+// milliseconds is noise; one spanning a long hidden period is a stale average.
+const CPU_MIN_WINDOW_MS = 250;
+const CPU_MAX_WINDOW_MS = 20000;
 
 function createSystemMetricsCollector({
   os: systemOs,
   execFile: runFile,
   now = Date.now,
-  collectSensors = async () => ({ cpuTemperature: undefined, power: { available: false } })
+  sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  collectSensors = async () => ({ cpuTemperature: undefined, power: { available: false } }),
+  collectGpu = createNvidiaCollector({ execFile: runFile })
 }) {
-  let previousCpu = systemOs.cpus();
+  let previousCpu;
+  let previousCpuAt = -Infinity;
+  let cpuBaselineVersion = 0;
   const platform = typeof systemOs.platform === 'function' ? systemOs.platform() : undefined;
   const arch = typeof systemOs.arch === 'function' ? systemOs.arch() : undefined;
   const unified = isUnifiedMemory({ platform, arch });
 
-  const collectGpu = () => new Promise((resolve) => {
-    runFile(
-      'nvidia-smi',
-      [
-        '--query-gpu=name,utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw,power.limit',
-        '--format=csv,noheader,nounits'
-      ],
-      { timeout: 1200, windowsHide: true },
-      (error, stdout) => {
-        resolve(error ? { available: false } : parseNvidiaOutput(stdout));
-      }
-    );
-  });
-
-  return async () => {
+  const sampleCpu = async () => {
+    const version = cpuBaselineVersion;
+    const age = now() - previousCpuAt;
+    let baseline = previousCpu;
+    if (!baseline || age < CPU_MIN_WINDOW_MS || age > CPU_MAX_WINDOW_MS) {
+      baseline = systemOs.cpus();
+      await sleep(CPU_MIN_WINDOW_MS);
+    }
     const currentCpu = systemOs.cpus();
+    const usage = calculateCpuUsage(baseline, currentCpu);
+    // A hidden/disposed view must stay invalidated even if a sample was
+    // already waiting for its CPU window when the visibility changed.
+    if (version === cpuBaselineVersion) {
+      previousCpu = currentCpu;
+      previousCpuAt = now();
+    }
+    return { currentCpu, usage };
+  };
+
+  const collect = async () => {
+    const [{ currentCpu, usage: cpuUsage }, gpu, sensors] = await Promise.all([
+      sampleCpu(), collectGpu(), collectSensors()
+    ]);
     const totalMemory = systemOs.totalmem();
-    const usedMemory = totalMemory - systemOs.freemem();
-    const cpuUsage = calculateCpuUsage(previousCpu, currentCpu);
-    previousCpu = currentCpu;
-    const [gpu, sensors] = await Promise.all([collectGpu(), collectSensors()]);
+    const availableMemory = Number.isFinite(sensors.availableMemory)
+      && sensors.availableMemory >= 0
+      && sensors.availableMemory <= totalMemory
+      ? sensors.availableMemory
+      : systemOs.freemem();
+    const usedMemory = totalMemory - availableMemory;
 
     return {
       host: systemOs.hostname(),
@@ -66,6 +87,12 @@ function createSystemMetricsCollector({
       power: mergePowerReadings(sensors.power, gpu)
     };
   };
+  collect.invalidateCpuBaseline = () => {
+    cpuBaselineVersion += 1;
+    previousCpu = undefined;
+    previousCpuAt = -Infinity;
+  };
+  return collect;
 }
 
 function createCutieboardRuntime({
@@ -77,12 +104,12 @@ function createCutieboardRuntime({
   const store = new TelemetryStore(60);
   let active = false;
   let timer;
-  let webview;
+  let view;
   let latestMetrics;
   let latestError;
 
   const postState = () => {
-    webview?.postMessage({
+    view?.webview.postMessage({
       type: 'cutieboard.state',
       metrics: latestMetrics,
       paused: sampler.paused,
@@ -109,16 +136,38 @@ function createCutieboardRuntime({
     }
   };
 
-  const schedule = () => {
-    if (!active) return;
+  // Sampling runs only while the view is on screen: every tick spawns
+  // nvidia-smi (which keeps a laptop dGPU out of runtime suspend) and, on
+  // Windows, PowerShell. Nobody is reading the numbers when it's hidden.
+  const isVisible = () => active && Boolean(view?.visible);
+
+  const stopTimer = () => {
     if (timer !== undefined) clearTimer(timer);
+    timer = undefined;
+  };
+
+  const schedule = () => {
+    stopTimer();
+    if (!isVisible()) return;
     const interval = vscodeApi.workspace
       .getConfiguration('cutieboard')
       .get('refreshInterval', 2000);
     timer = setTimer(async () => {
+      timer = undefined;
+      if (!isVisible()) return;
       await sample(false);
       schedule();
     }, interval);
+  };
+
+  const onVisibilityChanged = async () => {
+    if (!isVisible()) {
+      stopTimer();
+      collectMetrics.invalidateCpuBaseline?.();
+      return;
+    }
+    await sample(false);
+    schedule();
   };
 
   const focusMonitor = async () => {
@@ -128,11 +177,21 @@ function createCutieboardRuntime({
 
   const provider = {
     resolveWebviewView(webviewView) {
-      webview = webviewView.webview;
+      view = webviewView;
+      const { webview } = webviewView;
       webview.options = { enableScripts: true };
       const nonce = Array.from({ length: 24 }, () => Math.floor(Math.random() * 36).toString(36)).join('');
       webview.html = getWebviewHtml(nonce);
+      webviewView.onDidChangeVisibility(onVisibilityChanged);
+      webviewView.onDidDispose(() => {
+        if (view === webviewView) {
+          view = undefined;
+          stopTimer();
+          collectMetrics.invalidateCpuBaseline?.();
+        }
+      });
       postState();
+      onVisibilityChanged();
     }
   };
 
@@ -147,7 +206,6 @@ function createCutieboardRuntime({
         { webviewOptions: { retainContextWhenHidden: true } }
       ),
       vscodeApi.commands.registerCommand('cutieboard.focusMonitor', focusMonitor),
-      vscodeApi.commands.registerCommand('cutieboard.startSession', focusMonitor),
       vscodeApi.commands.registerCommand('cutieboard.refresh', () => sample(true)),
       vscodeApi.commands.registerCommand('cutieboard.pause', async () => {
         sampler.pause();
@@ -166,14 +224,12 @@ function createCutieboardRuntime({
     );
 
     await vscodeApi.commands.executeCommand('setContext', 'cutieboard.paused', false);
-    await sample(true);
-    schedule();
   };
 
   const deactivate = () => {
     active = false;
-    if (timer !== undefined) clearTimer(timer);
-    timer = undefined;
+    stopTimer();
+    collectMetrics.invalidateCpuBaseline?.();
   };
 
   return { activate, deactivate };
@@ -197,9 +253,15 @@ function createSensorCollector(platform, { fs: fileSystem, execFile: runFile } =
 
 const collectSensors = createSensorCollector(os.platform(), { fs, execFile });
 
+const collectGpu = createNvidiaCollector({
+  execFile,
+  readDirectory: (filePath) => fs.readdir(filePath),
+  readText: (filePath) => fs.readFile(filePath, 'utf8')
+});
+
 const runtime = createCutieboardRuntime({
   vscode,
-  collectMetrics: createSystemMetricsCollector({ os, execFile, collectSensors })
+  collectMetrics: createSystemMetricsCollector({ os, execFile, collectSensors, collectGpu })
 });
 
 function activate(context) {

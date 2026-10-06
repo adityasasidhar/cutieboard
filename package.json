@@ -16,15 +16,8 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [
-    "onStartupFinished",
-    "onView:cutieboard.monitorView",
-    "onCommand:cutieboard.focusMonitor",
-    "onCommand:cutieboard.refresh",
-    "onCommand:cutieboard.pause",
-    "onCommand:cutieboard.resume"
-  ],
-  "main": "./extension.js",
+  "activationEvents": [],
+  "main": "./src/extension.js",
   "contributes": {
     "commands": [
       {
@@ -91,7 +84,7 @@
     }
   },
   "scripts": {
-    "check": "node --check extension.js && node --check monitor-core.js && node --check monitor-view.js && node --check system-sensors.js",
+    "check": "node --check src/extension.js && node --check src/monitor-core.js && node --check src/monitor-view.js && node --check src/system-sensors.js",
     "test": "node --test test/*.test.js",
     "package": "npx @vscode/vsce package --allow-missing-repository"
   }

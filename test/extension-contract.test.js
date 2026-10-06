@@ -11,7 +11,12 @@ test('contributes an initially visible Cutieboard view to Explorer', () => {
     type: 'webview',
     visibility: 'visible'
   }]);
-  assert.ok(manifest.activationEvents.includes('onStartupFinished'));
+});
+
+test('activates lazily instead of at editor startup', () => {
+  const eager = (manifest.activationEvents || [])
+    .filter((event) => event === '*' || event === 'onStartupFinished');
+  assert.deepEqual(eager, []);
 });
 
 test('contributes native monitor actions to the Cutieboard view title', () => {

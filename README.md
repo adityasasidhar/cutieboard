@@ -29,9 +29,11 @@
 
 ## What it is
 
-An Explorer view that keeps sampling whether you're looking at it or not.
-Collapsed, focused elsewhere, mid-debug-session — the 60-sample sparkline
-history is still there when you come back.
+An Explorer view that samples only while it's on screen. Collapse it or
+switch to another sidebar and it stops completely — no `nvidia-smi`, no
+PowerShell, no laptop GPU kept awake for nobody. The 60-sample sparkline
+history is still there when you come back, and the first sample after you
+return is measured fresh rather than averaged over the time it was hidden.
 
 What you get per row is deliberately spare: a percentage, a bar, a
 sparkline, and one line of context. Anything the OS won't tell you shows
@@ -93,10 +95,23 @@ degrade to `--`, by design.
 
 | Metric | Linux | macOS | Windows |
 | :--- | :--- | :--- | :--- |
-| **CPU / memory** | yes | yes | yes |
-| **CPU temp** | hwmon (`coretemp`, `k10temp`, `zenpower`…) | needs `osx-cpu-temp` or privileged `powermetrics` | WMI thermal zone, often unexposed — expect `--°C` |
-| **Power** | RAPL / battery discharge / NVIDIA | battery via `ioreg` + `pmset`; CPU/GPU via privileged `powermetrics` | battery discharge via WMI (laptops; desktops show `--`) |
-| **GPU** | `nvidia-smi` | hidden — no public Apple GPU utilization CLI | `nvidia-smi`, if installed |
+| **CPU / memory** | yes | yes; memory via `vm_stat` (counts reclaimable pages) | yes |
+| **CPU temp** | hwmon (`coretemp`, `k10temp`, `zenpower`…) | needs `osx-cpu-temp` or privileged `powermetrics` | WMI thermal zone, often admin-only — expect `--°C` |
+| **Power** | RAPL (root-only on most distros) / battery `power_now`, `current_now` × `voltage_now`, or the `energy_now` drain rate / NVIDIA | battery via `ioreg` + `pmset`; CPU/GPU via privileged `powermetrics` | battery discharge via WMI (laptops; desktops show `--`) |
+| **GPU** | `nvidia-smi`; a runtime-suspended laptop dGPU shows `sleep` and is left asleep | hidden — no public Apple GPU utilization CLI | `nvidia-smi`, if installed |
+
+External tools that are missing, need root, or print nothing are retried
+every 5 minutes, not on every sample. Windows runs all its WMI queries in
+a single PowerShell process at most every 10 seconds, because starting
+PowerShell costs more CPU than the readings are worth.
+
+On Linux laptops with NVIDIA runtime power management (Optimus/RTD3),
+Cutieboard reads the GPU's power state from sysfs before touching it.
+Running `nvidia-smi` wakes a sleeping dGPU (about 1.8 s and several watts on
+an RTX 3050 Laptop GPU), so a suspended GPU just shows `sleep`. An awake but
+idle GPU is re-queried at most every 10 seconds so it can go back to sleep.
+`nvidia-smi` on Windows can't be asked first, so it is queried every sample
+while the view is visible.
 
 Two Apple Silicon specifics: memory is labeled `unified` because one pool
 serves CPU and GPU, and the VRAM row hides instead of counting the same
@@ -104,23 +119,27 @@ gigabytes twice. On machines without `nvidia-smi` the whole GPU section
 hides itself.
 
 Power readings have a pecking order: a platform/battery figure wins as the
-system total; otherwise CPU + GPU are summed and labeled `components`;
-an `nvidia-smi` power draw always beats a sensor guess for the GPU slice.
+system total; otherwise whatever CPU and GPU readings exist are summed and
+labeled `gpu only`, `cpu only` or `cpu + gpu` with `no system total`, so a
+GPU-only figure is never mistaken for the whole machine. An `nvidia-smi`
+power draw always beats a sensor guess for the GPU slice.
 
 ## How it's built
 
 Four files, no dependencies:
 
 ```
-extension.js       activation, orchestration, webview provider, commands
-system-sensors.js  collectors — hwmon/RAPL/battery, powermetrics/ioreg/pmset, WMI
-monitor-core.js    pure logic — CPU math, NVIDIA parsing, power merge, sampler, history
-monitor-view.js    the webview — one HTML file, inline script, strict nonce CSP
+src/extension.js       activation, orchestration, webview provider, commands
+src/system-sensors.js  collectors — hwmon/RAPL/battery, powermetrics/ioreg/pmset, WMI
+src/monitor-core.js    pure logic — CPU math, NVIDIA parsing, power merge, sampler, history
+src/monitor-view.js    the webview — one HTML file, inline script, strict nonce CSP
 ```
 
-Sampling is a guarded loop: a timer fires every `refreshInterval`, slow
-sensors can't overlap thanks to an in-flight guard, and pausing skips
-everything except a forced refresh. History holds 60 samples per metric;
+Sampling is a guarded loop that runs only while the view is visible: a
+timer fires every `refreshInterval`, slow sensors can't overlap thanks to
+an in-flight guard, and pausing skips everything except a forced refresh.
+The extension activates when the view is first shown, not at editor
+startup. History holds 60 samples per metric;
 GPU and power tracks reset to empty (not stale) when their sensors vanish.
 
 The view inherits your theme — sidebar colors, editor font, terminal
