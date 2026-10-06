@@ -8,13 +8,7 @@ sampled locally, every two seconds, with nowhere to phone home to.
 
 <br clear="both">
 
-```
-host · up 3h12m · 14:02:11 · ● live
-CPU  23.4% [██████░░░░] ▂▅▃▇   16T · load 1.20 0.90 0.70 · 61°C
-MEM  58.1% [████████░░] ▃▅▅▆   used 9.3G · free 6.7G · 16.0G total
-GPU  75.0% [█████████░] ▅▇▆█   vram 4.0G/8.0G · 68°C · 82.5W
-PWR  70.0W — cpu 25W · gpu 30W · system total
-```
+![alt text](image.png)
 
 No editor tab. No dashboard. Just glance left.
 
